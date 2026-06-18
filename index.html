@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>家事の達人ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 簡単なアニメーション用のスタイル */
+        @keyframes pop {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop { animation: pop 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-blue-50 text-gray-800 font-sans min-h-screen">
+    <div class="max-w-md mx-auto bg-white min-h-screen shadow-md relative pb-20">
+        <!-- ヘッダー -->
+        <header class="bg-indigo-600 text-white p-4 shadow-sm">
+            <h1 class="text-xl font-bold text-center">✨ 家事の達人 ✨</h1>
+            <p class="text-xs text-center mt-1 opacity-80">最高に心地よい空間をキープ</p>
+        </header>
+
+        <main class="p-4 space-y-6">
+            <!-- 今日のエネルギー残量 -->
+            <section class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                <h2 class="text-sm font-bold text-indigo-800 mb-2">🔋 今日のエネルギー残量は？</h2>
+                <div class="flex gap-2">
+                    <button onclick="setEnergy(10)" id="btn-energy-10" class="flex-1 py-2 rounded bg-white border border-gray-200 text-sm shadow-sm transition hover:bg-indigo-100">10%<br><span class="text-xs text-gray-500">ギリギリ</span></button>
+                    <button onclick="setEnergy(50)" id="btn-energy-50" class="flex-1 py-2 rounded bg-white border border-gray-200 text-sm shadow-sm transition hover:bg-indigo-100">50%<br><span class="text-xs text-gray-500">ぼちぼち</span></button>
+                    <button onclick="setEnergy(100)" id="btn-energy-100" class="flex-1 py-2 rounded bg-indigo-500 text-white text-sm shadow-sm transition">100%<br><span class="text-xs text-indigo-100">バッチリ！</span></button>
+                </div>
+            </section>
+
+            <!-- 必須タスク（固定表示） -->
+            <section>
+                <h2 class="text-sm font-bold text-gray-600 mb-2 border-b pb-1">📌 今日の絶対ミッション（必須）</h2>
+                <ul id="fixed-task-list" class="space-y-2">
+                    <!-- JavaScriptでここにタスクが生成されます -->
+                </ul>
+            </section>
+
+            <!-- 今日のランダムお掃除ガチャ -->
+            <section class="text-center bg-orange-50 p-6 rounded-xl border border-orange-100">
+                <h2 class="text-sm font-bold text-orange-800 mb-4">🎲 今日のランダムお掃除ガチャ</h2>
+                
+                <div id="gacha-result" class="hidden mb-4 p-4 bg-white rounded-lg shadow-sm border-2 border-orange-200 animate-pop">
+                    <!-- ガチャ結果がここに表示されます -->
+                </div>
+
+                <button onclick="drawGacha()" class="bg-gradient-to-r from-orange-400 to-red-400 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition hover:scale-105 active:scale-95">
+                    ガチャを回す！
+                </button>
+                <p class="text-xs text-gray-500 mt-2">※エネルギー残量に合わせて出現します</p>
+            </section>
+
+            <!-- ついでにやった掃除（アドホックタスク） -->
+            <section class="bg-green-50 p-4 rounded-xl border border-green-100">
+                <h2 class="text-sm font-bold text-green-800 mb-3">✨ ついでにやった掃除を記録</h2>
+                <div class="flex gap-2">
+                    <select id="adhoc-task-select" class="flex-1 p-2.5 rounded-lg border border-green-200 bg-white text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-300">
+                        <!-- JavaScriptで選択肢が生成されます -->
+                    </select>
+                    <button onclick="recordAdhocTask()" id="adhoc-record-btn" class="shrink-0 bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-4 py-2.5 rounded-lg shadow-sm transition">
+                        記録する
+                    </button>
+                </div>
+                <p id="adhoc-message" class="hidden mt-3 text-sm font-bold text-green-600 text-center"></p>
+            </section>
+        </main>
+    </div>
+
+    <!-- アプリの裏側（ロジック） -->
+    <script>
+        // --- 1. データベースの準備（マスターデータ） ---
+        const initialTasks = [
+            // 必須タスク
+            { id: 'toilet', name: 'トイレ掃除', type: 'fixed', intervalDays: 5, energyCost: 30 },
+            { id: 'kamekichi_tank', name: '亀吉の水槽掃除', type: 'fixed', weekdayOnly: 0, energyCost: 10 },
+            { id: 'washer_lint', name: '洗濯機のごみとり', type: 'fixed', intervalDays: 15, energyCost: 8 },
+            // ランダムタスク
+            { id: 'bath', name: 'お風呂掃除', type: 'random', intervalDays: 7, energyCost: 40 },
+            { id: 'sheets', name: 'シーツ洗濯', type: 'random', intervalDays: 7, energyCost: 50 },
+            { id: 'ac_filter', name: 'エアコンフィルター掃除', type: 'random', intervalDays: 30, energyCost: 80 },
+            { id: 'roomba', name: 'ルンバかける', type: 'random', intervalDays: 2, energyCost: 5 },
+            { id: 'entrance', name: '玄関掃除', type: 'random', intervalDays: 5, energyCost: 10 },
+            { id: 'floor_wiper', name: 'フローリングワイパーかける', type: 'random', intervalDays: 5, energyCost: 80 },
+            { id: 'kitchen_stove', name: 'キッチンコンロ掃除', type: 'random', intervalDays: 10, energyCost: 40 },
+            { id: 'clothes_declutter', name: '洋服断捨離', type: 'random', intervalDays: 90, energyCost: 80 },
+            { id: 'washroom', name: '洗面所掃除', type: 'random', intervalDays: 10, energyCost: 50 },
+            { id: 'plants_water', name: '観葉植物水やり', type: 'random', intervalDays: 10, energyCost: 8 },
+            { id: 'table_tidy', name: 'テーブル片付け', type: 'random', intervalDays: 20, energyCost: 30 },
+            { id: 'corocoro', name: 'コロコロかける', type: 'random', intervalDays: 5, energyCost: 8 },
+            { id: 'balcony', name: '🍂 ベランダ掃除', type: 'random', intervalDays: 30, energyCost: 50 },
+            { id: 'window', name: '🪟 窓ふき', type: 'random', intervalDays: 15, energyCost: 80 },
+            { id: 'shoes', name: '👞 靴磨き', type: 'random', intervalDays: 20, energyCost: 40 },
+            { id: 'cat_cage_bed', name: '猫のケージ・ベッドの掃除', type: 'random', intervalDays: 14, energyCost: 50 },
+            { id: 'cat_water_bowl', name: '猫の水飲み器の念入り洗い', type: 'random', intervalDays: 10, energyCost: 8 },
+            { id: 'microwave', name: '電子レンジ庫内の拭き掃除', type: 'random', intervalDays: 14, energyCost: 8 },
+            { id: 'fridge', name: '冷蔵庫の中の拭き掃除と賞味期限チェック', type: 'random', intervalDays: 30, energyCost: 40 },
+            { id: 'curtains', name: 'カーテンの洗濯', type: 'random', intervalDays: 360, energyCost: 80 },
+            { id: 'trash_can', name: 'ゴミ箱拭き', type: 'random', intervalDays: 90, energyCost: 50 }
+        ];
+
+        let currentEnergy = 100;
+        let db;
+        let adhocMessageTimer = null;
+
+        // --- 2. IndexedDB（ブラウザの保存領域）の初期化 ---
+        const request = indexedDB.open("KajiMasterDB", 3);
+
+        request.onupgradeneeded = function(event) {
+            db = event.target.result;
+            if (!db.objectStoreNames.contains("tasks")) {
+                db.createObjectStore("tasks", { keyPath: "id" });
+            }
+        };
+
+        request.onsuccess = function(event) {
+            db = event.target.result;
+            syncMasterTasks(refreshUI);
+        };
+
+        function syncMasterTasks(callback) {
+            const transaction = db.transaction(["tasks"], "readwrite");
+            const objectStore = transaction.objectStore("tasks");
+            const getAllRequest = objectStore.getAll();
+
+            getAllRequest.onsuccess = function() {
+                const existingMap = new Map(getAllRequest.result.map(task => [task.id, task]));
+
+                if (existingMap.has('shoe_polish') && !existingMap.has('shoes')) {
+                    const legacyTask = existingMap.get('shoe_polish');
+                    objectStore.put({ ...initialTasks.find(t => t.id === 'shoes'), lastCleanedDate: legacyTask.lastCleanedDate });
+                    objectStore.delete('shoe_polish');
+                    existingMap.delete('shoe_polish');
+                }
+
+                initialTasks.forEach(masterTask => {
+                    const existingTask = existingMap.get(masterTask.id);
+                    if (existingTask) {
+                        objectStore.put({ ...existingTask, ...masterTask, lastCleanedDate: existingTask.lastCleanedDate });
+                    } else {
+                        objectStore.add({ ...masterTask, lastCleanedDate: null });
+                    }
+                });
+            };
+
+            transaction.oncomplete = function() {
+                if (callback) callback();
+            };
+        }
+
+        function refreshUI() {
+            loadFixedTasks();
+            loadAdhocTaskSelect();
+        }
+
+        // --- 3. UIの操作とロジック ---
+
+        function isTaskDoneToday(task) {
+            return task.lastCleanedDate && (new Date().toDateString() === new Date(task.lastCleanedDate).toDateString());
+        }
+
+        function isFixedTaskDue(task) {
+            const now = new Date();
+            if (task.weekdayOnly !== undefined && now.getDay() !== task.weekdayOnly) return false;
+            if (!task.lastCleanedDate) return true;
+            if (isTaskDoneToday(task)) return false;
+            if (task.intervalDays) {
+                const intervalMs = task.intervalDays * 24 * 60 * 60 * 1000;
+                return (task.lastCleanedDate + intervalMs) <= now.getTime();
+            }
+            return true;
+        }
+
+        function shouldShowFixedTask(task) {
+            const now = new Date();
+            if (task.weekdayOnly !== undefined && now.getDay() !== task.weekdayOnly) return false;
+            if (isTaskDoneToday(task)) return true;
+            return isFixedTaskDue(task);
+        }
+
+        // エネルギー設定関数
+        function setEnergy(level) {
+            currentEnergy = level;
+            // ボタンの見た目を変える処理
+            [10, 50, 100].forEach(val => {
+                const btn = document.getElementById(`btn-energy-${val}`);
+                if (val === level) {
+                    btn.className = "flex-1 py-2 rounded bg-indigo-500 text-white text-sm shadow-sm transition";
+                } else {
+                    btn.className = "flex-1 py-2 rounded bg-white border border-gray-200 text-sm shadow-sm transition hover:bg-indigo-100";
+                }
+            });
+            // ガチャ結果を一回隠す
+            document.getElementById('gacha-result').classList.add('hidden');
+        }
+
+        // 必須タスクの表示関数
+        function loadFixedTasks() {
+            const transaction = db.transaction(["tasks"], "readonly");
+            const objectStore = transaction.objectStore("tasks");
+            const request = objectStore.getAll();
+
+            request.onsuccess = function(event) {
+                const allTasks = event.target.result;
+                const fixedList = document.getElementById('fixed-task-list');
+                fixedList.innerHTML = ''; // 一旦クリア
+
+                // 必須タスクだけを抽出して表示
+                const fixedTasks = allTasks.filter(t => t.type === 'fixed' && shouldShowFixedTask(t));
+                fixedTasks.forEach(task => {
+                    const isDoneToday = isTaskDoneToday(task);
+                    
+                    const li = document.createElement('li');
+                    li.className = `flex items-center justify-between p-3 rounded-lg border ${isDoneToday ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-white border-gray-200 shadow-sm'}`;
+                    li.innerHTML = `
+                        <span class="${isDoneToday ? 'line-through' : 'font-medium'}">${task.name}</span>
+                        <button onclick="completeTask('${task.id}')" class="${isDoneToday ? 'bg-gray-300' : 'bg-green-500 hover:bg-green-600'} text-white text-xs px-3 py-1.5 rounded" ${isDoneToday ? 'disabled' : ''}>
+                            ${isDoneToday ? '完了済' : '完了'}
+                        </button>
+                    `;
+                    fixedList.appendChild(li);
+                });
+            };
+        }
+
+        // ついでにやった掃除の選択肢を更新
+        function loadAdhocTaskSelect() {
+            const transaction = db.transaction(["tasks"], "readonly");
+            const objectStore = transaction.objectStore("tasks");
+            const request = objectStore.getAll();
+
+            request.onsuccess = function(event) {
+                const allTasks = event.target.result;
+                const taskMap = new Map(allTasks.map(task => [task.id, task]));
+                const incompleteTasks = initialTasks
+                    .map(masterTask => taskMap.get(masterTask.id))
+                    .filter(task => task && !isTaskDoneToday(task));
+
+                const select = document.getElementById('adhoc-task-select');
+                const recordBtn = document.getElementById('adhoc-record-btn');
+                select.innerHTML = '';
+
+                if (incompleteTasks.length === 0) {
+                    select.innerHTML = '<option value="">今日記録できるタスクはありません</option>';
+                    select.disabled = true;
+                    recordBtn.disabled = true;
+                    recordBtn.className = 'shrink-0 bg-gray-300 text-white text-sm font-bold px-4 py-2.5 rounded-lg shadow-sm cursor-not-allowed';
+                    return;
+                }
+
+                select.disabled = false;
+                recordBtn.disabled = false;
+                recordBtn.className = 'shrink-0 bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-4 py-2.5 rounded-lg shadow-sm transition';
+
+                incompleteTasks.forEach(task => {
+                    const option = document.createElement('option');
+                    option.value = task.id;
+                    option.textContent = task.name;
+                    select.appendChild(option);
+                });
+            };
+        }
+
+        function showAdhocMessage(message) {
+            const messageEl = document.getElementById('adhoc-message');
+            messageEl.textContent = message;
+            messageEl.classList.remove('hidden');
+
+            if (adhocMessageTimer) clearTimeout(adhocMessageTimer);
+            adhocMessageTimer = setTimeout(() => {
+                messageEl.classList.add('hidden');
+            }, 3000);
+        }
+
+        function recordAdhocTask() {
+            const taskId = document.getElementById('adhoc-task-select').value;
+            if (!taskId) return;
+            completeTask(taskId, {
+                onSuccess: (task) => showAdhocMessage(`${task.name}を記録しました！`)
+            });
+        }
+
+        // ガチャを回す関数
+        function drawGacha() {
+            const transaction = db.transaction(["tasks"], "readonly");
+            const objectStore = transaction.objectStore("tasks");
+            const request = objectStore.getAll();
+
+            request.onsuccess = function(event) {
+                const allTasks = event.target.result;
+                const now = new Date().getTime();
+                
+                // ガチャの候補を絞り込む条件
+                // 1. randomタスクであること
+                // 2. 設定したエネルギー残量（currentEnergy）以下のタスクであること
+                // 3. インターバル（潜伏期間）を過ぎていること
+                const candidates = allTasks.filter(task => {
+                    if (task.type !== 'random') return false;
+                    if (task.energyCost > currentEnergy) return false;
+                    
+                    // まだ一度も掃除してなければ候補に入れる
+                    if (!task.lastCleanedDate) return true;
+
+                    // 前回掃除した日 + 理想の間隔(日数) が現在時刻より過去なら候補に入れる
+                    const intervalMs = task.intervalDays * 24 * 60 * 60 * 1000;
+                    return (task.lastCleanedDate + intervalMs) <= now;
+                });
+
+                const resultDiv = document.getElementById('gacha-result');
+                resultDiv.classList.remove('hidden');
+                
+                // アニメーションを再トリガーするための小技
+                resultDiv.classList.remove('animate-pop');
+                void resultDiv.offsetWidth;
+                resultDiv.classList.add('animate-pop');
+
+                if (candidates.length === 0) {
+                    resultDiv.innerHTML = `<p class="text-orange-600 font-bold">今日はもう十分！休んでいいよ☕️</p>`;
+                    return;
+                }
+
+                // ランダムに1つ選ぶ
+                const randomTask = candidates[Math.floor(Math.random() * candidates.length)];
+                
+                resultDiv.innerHTML = `
+                    <div class="text-xs text-orange-500 mb-1">今日のミッション</div>
+                    <div class="text-lg font-bold text-gray-800 mb-3">${randomTask.name}</div>
+                    <button onclick="completeTask('${randomTask.id}')" class="bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold py-2 px-6 rounded shadow">
+                        完了する！
+                    </button>
+                `;
+            };
+        }
+
+        // タスク完了処理（データベースの最終実施日を現在時刻で上書き）
+        function completeTask(id, options = {}) {
+            const transaction = db.transaction(["tasks"], "readwrite");
+            const objectStore = transaction.objectStore("tasks");
+            const getRequest = objectStore.get(id);
+
+            getRequest.onsuccess = function(event) {
+                const task = event.target.result;
+                if (!task) return;
+
+                task.lastCleanedDate = new Date().getTime();
+
+                const updateRequest = objectStore.put(task);
+                updateRequest.onsuccess = function() {
+                    refreshUI();
+                    if (options.onSuccess) {
+                        options.onSuccess(task);
+                    } else if (task.type === 'random') {
+                        document.getElementById('gacha-result').innerHTML = `<p class="text-green-600 font-bold">✨ お疲れ様！ピカピカになったね ✨</p>`;
+                    }
+                };
+            };
+        }
+    </script>
+</body>
+</html>
