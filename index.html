@@ -12,6 +12,15 @@
             100% { transform: scale(1); opacity: 1; }
         }
         .animate-pop { animation: pop 0.3s ease-out forwards; }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .exp-bar-fill {
+            background: linear-gradient(90deg, #fbbf24, #f97316, #fbbf24);
+            background-size: 200% 100%;
+            animation: shimmer 2s linear infinite;
+        }
     </style>
 </head>
 <body class="bg-blue-50 text-gray-800 font-sans min-h-screen">
@@ -21,6 +30,27 @@
             <h1 class="text-xl font-bold text-center">✨ 家事の達人 ✨</h1>
             <p class="text-xs text-center mt-1 opacity-80">最高に心地よい空間をキープ</p>
         </header>
+
+        <!-- 家事の達人度（レベル・経験値） -->
+        <section id="level-section" class="bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 p-4 shadow-md">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span id="level-badge" class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white text-orange-600 font-black text-sm shadow-md">Lv1</span>
+                    <div>
+                        <p class="text-xs text-white/90 font-medium">家事の達人度</p>
+                        <p id="level-title" class="text-white font-bold text-sm drop-shadow">家事見習い</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-white/90">累計エネルギー</p>
+                    <p id="total-exp" class="text-white font-black text-lg drop-shadow">0</p>
+                </div>
+            </div>
+            <div class="relative h-4 bg-white/30 rounded-full overflow-hidden shadow-inner">
+                <div id="exp-progress-bar" class="exp-bar-fill h-full rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+            </div>
+            <p id="exp-progress-text" class="text-xs text-white/95 mt-1.5 text-center font-medium">次のレベルまで 100</p>
+        </section>
 
         <main class="p-4 space-y-6">
             <!-- 今日のエネルギー残量 -->
@@ -107,6 +137,79 @@
         let db;
         let adhocMessageTimer = null;
 
+        const EXP_STORAGE_KEY = 'kajiMasterTotalExp';
+        const levelTiers = [
+            { level: 1, title: '家事見習い', minExp: 0 },
+            { level: 2, title: '家事ルーキー', minExp: 100 },
+            { level: 3, title: '家事レギュラー', minExp: 300 },
+            { level: 4, title: '家事マスター', minExp: 600 },
+            { level: 5, title: '伝説の家事神', minExp: 1000 }
+        ];
+
+        function getTotalExp() {
+            return parseInt(localStorage.getItem(EXP_STORAGE_KEY) || '0', 10);
+        }
+
+        function addExp(amount) {
+            const gained = Number(amount) || 0;
+            if (gained <= 0) return getTotalExp();
+            const newTotal = getTotalExp() + gained;
+            localStorage.setItem(EXP_STORAGE_KEY, String(newTotal));
+            return newTotal;
+        }
+
+        function getLevelInfo(totalExp) {
+            let currentTier = levelTiers[0];
+            for (const tier of levelTiers) {
+                if (totalExp >= tier.minExp) currentTier = tier;
+            }
+
+            const currentIndex = levelTiers.findIndex(t => t.level === currentTier.level);
+            const nextTier = levelTiers[currentIndex + 1];
+            const isMaxLevel = !nextTier;
+
+            if (isMaxLevel) {
+                return {
+                    level: currentTier.level,
+                    title: currentTier.title,
+                    totalExp,
+                    progressPercent: 100,
+                    expToNext: 0,
+                    nextLevelExp: null,
+                    isMaxLevel: true
+                };
+            }
+
+            const expInLevel = totalExp - currentTier.minExp;
+            const expNeeded = nextTier.minExp - currentTier.minExp;
+            const progressPercent = Math.min(100, Math.round((expInLevel / expNeeded) * 100));
+
+            return {
+                level: currentTier.level,
+                title: currentTier.title,
+                totalExp,
+                progressPercent,
+                expToNext: nextTier.minExp - totalExp,
+                nextLevelExp: nextTier.minExp,
+                isMaxLevel: false
+            };
+        }
+
+        function updateLevelDisplay() {
+            const info = getLevelInfo(getTotalExp());
+            document.getElementById('level-badge').textContent = `Lv${info.level}`;
+            document.getElementById('level-title').textContent = info.title;
+            document.getElementById('total-exp').textContent = info.totalExp.toLocaleString();
+            document.getElementById('exp-progress-bar').style.width = `${info.progressPercent}%`;
+
+            const progressText = document.getElementById('exp-progress-text');
+            if (info.isMaxLevel) {
+                progressText.textContent = '🎉 最高レベル到達！伝説の家事神！';
+            } else {
+                progressText.textContent = `次のレベルまで ${info.expToNext}（Lv${info.level + 1} まで ${info.progressPercent}%）`;
+            }
+        }
+
         // --- 2. IndexedDB（ブラウザの保存領域）の初期化 ---
         const request = indexedDB.open("KajiMasterDB", 3);
 
@@ -155,7 +258,10 @@
         function refreshUI() {
             loadFixedTasks();
             loadAdhocTaskSelect();
+            updateLevelDisplay();
         }
+
+        updateLevelDisplay();
 
         // --- 3. UIの操作とロジック ---
 
@@ -280,7 +386,7 @@
             const taskId = document.getElementById('adhoc-task-select').value;
             if (!taskId) return;
             completeTask(taskId, {
-                onSuccess: (task) => showAdhocMessage(`${task.name}を記録しました！`)
+                onSuccess: (task) => showAdhocMessage(`${task.name}を記録しました！（+${task.energyCost} EXP）`)
             });
         }
 
@@ -350,11 +456,12 @@
 
                 const updateRequest = objectStore.put(task);
                 updateRequest.onsuccess = function() {
+                    addExp(task.energyCost);
                     refreshUI();
                     if (options.onSuccess) {
                         options.onSuccess(task);
                     } else if (task.type === 'random') {
-                        document.getElementById('gacha-result').innerHTML = `<p class="text-green-600 font-bold">✨ お疲れ様！ピカピカになったね ✨</p>`;
+                        document.getElementById('gacha-result').innerHTML = `<p class="text-green-600 font-bold">✨ お疲れ様！+${task.energyCost} EXP 獲得！ ✨</p>`;
                     }
                 };
             };
