@@ -288,7 +288,17 @@
         request.onsuccess = function(event) {
             db = event.target.result;
             syncMasterTasks(refreshUI);
+            scheduleMidnightRefresh();
         };
+
+        function scheduleMidnightRefresh() {
+            const now = new Date();
+            const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            setTimeout(() => {
+                refreshUI();
+                scheduleMidnightRefresh();
+            }, tomorrow - now);
+        }
 
         function syncMasterTasks(callback) {
             const transaction = db.transaction(["tasks"], "readwrite");
@@ -349,8 +359,7 @@
         function shouldShowFixedTask(task) {
             const now = new Date();
             if (task.weekdayOnly !== undefined && now.getDay() !== task.weekdayOnly) return false;
-            if (isTaskDoneToday(task)) return true;
-            return isFixedTaskDue(task);
+            return true;
         }
 
         // エネルギー設定関数
@@ -384,13 +393,33 @@
                 const fixedTasks = allTasks.filter(t => t.type === 'fixed' && shouldShowFixedTask(t));
                 fixedTasks.forEach(task => {
                     const isDoneToday = isTaskDoneToday(task);
-                    
+                    const isDue = isFixedTaskDue(task);
+                    const isActionable = !isDoneToday && isDue;
+
+                    let liClass, spanClass, btnClass, btnLabel;
+                    if (isDoneToday) {
+                        liClass = 'clay-inset bg-slate-100/70 text-slate-400';
+                        spanClass = 'line-through';
+                        btnClass = 'bg-slate-300 text-white';
+                        btnLabel = '完了済';
+                    } else if (isDue) {
+                        liClass = 'clay bg-white';
+                        spanClass = 'font-bold text-slate-700';
+                        btnClass = 'clay-pop bg-gradient-to-br from-emerald-400 to-teal-500 text-white';
+                        btnLabel = '完了';
+                    } else {
+                        liClass = 'clay-inset bg-slate-50/70 text-slate-400';
+                        spanClass = 'text-slate-400';
+                        btnClass = 'bg-slate-200 text-slate-400';
+                        btnLabel = '未到来';
+                    }
+
                     const li = document.createElement('li');
-                    li.className = `flex items-center justify-between gap-3 px-5 py-4 rounded-3xl ${isDoneToday ? 'clay-inset bg-slate-100/70 text-slate-400' : 'clay bg-white'}`;
+                    li.className = `flex items-center justify-between gap-3 px-5 py-4 rounded-3xl ${liClass}`;
                     li.innerHTML = `
-                        <span class="text-sm ${isDoneToday ? 'line-through' : 'font-bold text-slate-700'}">${task.name}</span>
-                        <button onclick="completeTask('${task.id}')" class="${isDoneToday ? 'bg-slate-300 text-white' : 'clay-pop bg-gradient-to-br from-emerald-400 to-teal-500 text-white'} text-xs font-bold px-4 py-2 rounded-2xl shrink-0" ${isDoneToday ? 'disabled' : ''}>
-                            ${isDoneToday ? '完了済' : '完了'}
+                        <span class="text-sm ${spanClass}">${task.name}</span>
+                        <button onclick="completeTask('${task.id}')" class="${btnClass} text-xs font-bold px-4 py-2 rounded-2xl shrink-0" ${isActionable ? '' : 'disabled'}>
+                            ${btnLabel}
                         </button>
                     `;
                     fixedList.appendChild(li);
