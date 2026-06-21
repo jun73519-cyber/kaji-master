@@ -172,31 +172,31 @@
             { id: 'toilet', name: 'トイレ掃除', type: 'fixed', intervalDays: 5, energyCost: 30 },
             { id: 'kamekichi_tank', name: '亀吉の水槽掃除', type: 'fixed', weekdayOnly: 0, energyCost: 10 },
             { id: 'washer_lint', name: '洗濯機のごみとり', type: 'fixed', intervalDays: 15, energyCost: 8 },
-            // ランダムタスク
-            { id: 'bath', name: 'お風呂掃除', type: 'random', intervalDays: 7, energyCost: 40 },
-            { id: 'sheets', name: 'シーツ洗濯', type: 'random', intervalDays: 7, energyCost: 50 },
-            { id: 'ac_filter', name: 'エアコンフィルター掃除', type: 'random', intervalDays: 30, energyCost: 80 },
-            { id: 'roomba', name: 'ルンバかける', type: 'random', intervalDays: 2, energyCost: 5 },
-            { id: 'entrance', name: '玄関掃除', type: 'random', intervalDays: 5, energyCost: 10 },
-            { id: 'floor_wiper', name: 'フローリングワイパーかける', type: 'random', intervalDays: 5, energyCost: 80 },
-            { id: 'kitchen_stove', name: 'キッチンコンロ掃除', type: 'random', intervalDays: 10, energyCost: 40 },
-            { id: 'clothes_declutter', name: '洋服断捨離', type: 'random', intervalDays: 90, energyCost: 80 },
-            { id: 'washroom', name: '洗面所掃除', type: 'random', intervalDays: 10, energyCost: 50 },
-            { id: 'plants_water', name: '観葉植物水やり', type: 'random', intervalDays: 10, energyCost: 8 },
-            { id: 'table_tidy', name: 'テーブル片付け', type: 'random', intervalDays: 20, energyCost: 30 },
-            { id: 'corocoro', name: 'コロコロかける', type: 'random', intervalDays: 5, energyCost: 8 },
-            { id: 'balcony', name: '🍂 ベランダ掃除', type: 'random', intervalDays: 30, energyCost: 50 },
-            { id: 'window', name: '🪟 窓ふき', type: 'random', intervalDays: 15, energyCost: 80 },
-            { id: 'shoes', name: '👞 靴磨き', type: 'random', intervalDays: 20, energyCost: 40 },
-            { id: 'cat_cage_bed', name: '猫のケージ・ベッドの掃除', type: 'random', intervalDays: 14, energyCost: 50 },
-            { id: 'cat_water_bowl', name: '猫の水飲み器の念入り洗い', type: 'random', intervalDays: 10, energyCost: 8 },
-            { id: 'microwave', name: '電子レンジ庫内の拭き掃除', type: 'random', intervalDays: 14, energyCost: 8 },
-            { id: 'fridge', name: '冷蔵庫の中の拭き掃除と賞味期限チェック', type: 'random', intervalDays: 30, energyCost: 40 },
-            { id: 'curtains', name: 'カーテンの洗濯', type: 'random', intervalDays: 360, energyCost: 80 },
-            { id: 'trash_can', name: 'ゴミ箱拭き', type: 'random', intervalDays: 90, energyCost: 50 },
-            { id: 'duster', name: 'はたき', type: 'random', intervalDays: 15, energyCost: 30 },
-            { id: 'tidy_one_spot', name: '一か所片付ける', type: 'random', intervalDays: 10, energyCost: 10 },
-            { id: 'floor_mop', name: 'フローリング雑巾がけ', type: 'random', intervalDays: 20, energyCost: 70 }
+            // ランダムタスク（ガチャ）：type は 'random' のまま維持（抽選ロジック互換のため）。rarity / reward を付与
+            { id: 'bath', name: 'お風呂掃除', type: 'random', intervalDays: 7, energyCost: 40, rarity: 'R' },
+            { id: 'sheets', name: 'シーツ洗濯', type: 'random', intervalDays: 7, energyCost: 50, rarity: 'SR', reward: 'ふかふかベッドで二度寝OK🛌' },
+            { id: 'ac_filter', name: 'エアコンフィルター掃除', type: 'random', intervalDays: 30, energyCost: 80, rarity: 'SSR', reward: 'コンビニで新作スイーツを買う🍰' },
+            { id: 'roomba', name: 'ルンバかける', type: 'random', intervalDays: 2, energyCost: 5, rarity: 'N' },
+            { id: 'entrance', name: '玄関掃除', type: 'random', intervalDays: 5, energyCost: 10, rarity: 'N' },
+            { id: 'floor_wiper', name: 'フローリングワイパーかける', type: 'random', intervalDays: 5, energyCost: 80, rarity: 'SSR', reward: '好きな映画を1本見る🎬' },
+            { id: 'kitchen_stove', name: 'キッチンコンロ掃除', type: 'random', intervalDays: 10, energyCost: 40, rarity: 'R' },
+            { id: 'clothes_declutter', name: '洋服断捨離', type: 'random', intervalDays: 90, energyCost: 80, rarity: 'SSR', reward: '欲しかった服を1着ポチる🛍️' },
+            { id: 'washroom', name: '洗面所掃除', type: 'random', intervalDays: 10, energyCost: 50, rarity: 'SR', reward: 'お気に入りの入浴剤を使う🛁' },
+            { id: 'plants_water', name: '観葉植物水やり', type: 'random', intervalDays: 10, energyCost: 8, rarity: 'N' },
+            { id: 'table_tidy', name: 'テーブル片付け', type: 'random', intervalDays: 20, energyCost: 30, rarity: 'R' },
+            { id: 'corocoro', name: 'コロコロかける', type: 'random', intervalDays: 5, energyCost: 8, rarity: 'N' },
+            { id: 'balcony', name: '🍂 ベランダ掃除', type: 'random', intervalDays: 30, energyCost: 50, rarity: 'SR', reward: 'ベランダでコーヒータイム☕️' },
+            { id: 'window', name: '🪟 窓ふき', type: 'random', intervalDays: 15, energyCost: 80, rarity: 'SSR', reward: '窓際でアイスを食べる🍦' },
+            { id: 'shoes', name: '👞 靴磨き', type: 'random', intervalDays: 20, energyCost: 40, rarity: 'R' },
+            { id: 'cat_cage_bed', name: '猫のケージ・ベッドの掃除', type: 'random', intervalDays: 14, energyCost: 50, rarity: 'SR', reward: '猫と10分じゃらす🐈' },
+            { id: 'cat_water_bowl', name: '猫の水飲み器の念入り洗い', type: 'random', intervalDays: 10, energyCost: 8, rarity: 'N' },
+            { id: 'microwave', name: '電子レンジ庫内の拭き掃除', type: 'random', intervalDays: 14, energyCost: 8, rarity: 'N' },
+            { id: 'fridge', name: '冷蔵庫の中の拭き掃除と賞味期限チェック', type: 'random', intervalDays: 30, energyCost: 40, rarity: 'R' },
+            { id: 'curtains', name: 'カーテンの洗濯', type: 'random', intervalDays: 360, energyCost: 80, rarity: 'SSR', reward: '昼寝を30分する😴' },
+            { id: 'trash_can', name: 'ゴミ箱拭き', type: 'random', intervalDays: 90, energyCost: 50, rarity: 'SR', reward: '炭酸ジュースを1本飲む🥤' },
+            { id: 'duster', name: 'はたき', type: 'random', intervalDays: 15, energyCost: 30, rarity: 'R' },
+            { id: 'tidy_one_spot', name: '一か所片付ける', type: 'random', intervalDays: 10, energyCost: 10, rarity: 'N' },
+            { id: 'floor_mop', name: 'フローリング雑巾がけ', type: 'random', intervalDays: 20, energyCost: 70, rarity: 'SR', reward: '足を伸ばしてストレッチ🧘' }
         ];
 
         let currentEnergy = 100;
@@ -507,6 +507,18 @@
             });
         }
 
+        // レア度バッジ（SSR:金 / SR:紫 / R:青 / N:グレー）
+        function renderRarityBadge(rarity) {
+            const styles = {
+                SSR: 'bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-white shadow-amber-300/50',
+                SR: 'bg-purple-500 text-white shadow-purple-400/40',
+                R: 'bg-blue-500 text-white shadow-blue-400/40',
+                N: 'bg-slate-400 text-white shadow-slate-300/40'
+            };
+            const cls = styles[rarity] || styles.N;
+            return `<span class="inline-block ${cls} text-[11px] font-black px-3 py-1 rounded-full shadow-md tracking-widest">${rarity}</span>`;
+        }
+
         // ガチャを回す関数
         function drawGacha() {
             const transaction = db.transaction(["tasks"], "readonly");
@@ -548,10 +560,19 @@
 
                 // ランダムに1つ選ぶ
                 const randomTask = candidates[Math.floor(Math.random() * candidates.length)];
-                
+
+                const rarityBadge = randomTask.rarity ? renderRarityBadge(randomTask.rarity) : '';
+                const rewardHtml = randomTask.reward ? `
+                    <div class="mt-1 mb-4 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-pink-100 via-rose-50 to-amber-100 border border-pink-200/70 shadow-sm">
+                        <p class="text-xs font-bold text-pink-500">🎁 クリア報酬: <span class="text-rose-500">${randomTask.reward}</span></p>
+                    </div>
+                ` : '';
+
                 resultDiv.innerHTML = `
-                    <div class="text-[11px] font-semibold text-orange-400 mb-1.5">今日のミッション</div>
-                    <div class="text-lg font-black text-slate-700 mb-4">${randomTask.name}</div>
+                    <div class="text-[11px] font-semibold text-orange-400 mb-2">今日のミッション</div>
+                    ${rarityBadge ? `<div class="mb-2">${rarityBadge}</div>` : ''}
+                    <div class="text-lg font-black text-slate-700 ${randomTask.reward ? 'mb-2' : 'mb-4'}">${randomTask.name}</div>
+                    ${rewardHtml}
                     <button onclick="completeTask('${randomTask.id}')" class="clay-pop bg-gradient-to-br from-orange-400 to-rose-400 text-white text-sm font-bold py-3 px-8 rounded-full">
                         完了する！
                     </button>
