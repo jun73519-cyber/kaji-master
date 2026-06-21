@@ -72,6 +72,11 @@
             100% { transform: scale(1); opacity: 1; }
         }
         .animate-pop { animation: pop 0.3s ease-out forwards; }
+        @keyframes flame {
+            0%, 100% { transform: scale(1) rotate(-4deg); }
+            50% { transform: scale(1.18) rotate(4deg); }
+        }
+        .animate-flame { display: inline-block; animation: flame 0.9s ease-in-out infinite; }
         @keyframes shimmer {
             0% { background-position: -200% 0; }
             100% { background-position: 200% 0; }
@@ -93,6 +98,12 @@
             <h1 class="text-2xl font-black text-slate-700 tracking-tight">✨ 家事の達人 ✨</h1>
             <p class="text-xs text-slate-400 mt-1.5 font-medium">最高に心地よい空間をキープ</p>
         </header>
+
+        <!-- 連続達成日数（ストリーク） -->
+        <div id="streak-banner" class="clay-pop rounded-2xl px-5 py-3.5 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 text-white flex items-center justify-center gap-2.5">
+            <span id="streak-fire" class="text-2xl drop-shadow">🔥</span>
+            <span id="streak-text" class="font-black text-base drop-shadow-sm tracking-tight">記録を読み込み中...</span>
+        </div>
 
         <!-- 家事の達人度（レベル・経験値） -->
         <section id="level-section" class="clay-pop rounded-[2rem] p-6 bg-gradient-to-br from-amber-300 via-orange-400 to-rose-400 text-white">
@@ -162,6 +173,13 @@
                 <p id="adhoc-message" class="hidden mt-4 text-sm font-bold text-emerald-600 text-center"></p>
             </section>
         </main>
+
+        <!-- 今週のサマリー -->
+        <section class="clay-inset rounded-2xl px-5 py-4 bg-white/50 flex items-center justify-center gap-2">
+            <span class="text-base">📊</span>
+            <p class="text-xs text-slate-400 font-medium">今週こなしたタスク</p>
+            <p class="text-sm font-black text-slate-600"><span id="weekly-count">0</span> 件</p>
+        </section>
     </div>
 
     <!-- アプリの裏側（ロジック） -->
@@ -278,12 +296,17 @@
         }
 
         // --- 2. IndexedDB（ブラウザの保存領域）の初期化 ---
-        const request = indexedDB.open("KajiMasterDB", 3);
+        const request = indexedDB.open("KajiMasterDB", 4);
 
         request.onupgradeneeded = function(event) {
             db = event.target.result;
             if (!db.objectStoreNames.contains("tasks")) {
                 db.createObjectStore("tasks", { keyPath: "id" });
+            }
+            // 完了履歴ストア（達成感の可視化・統計用）。1完了 = 1レコード
+            if (!db.objectStoreNames.contains("completionHistory")) {
+                const historyStore = db.createObjectStore("completionHistory", { keyPath: "key", autoIncrement: true });
+                historyStore.createIndex("byDate", "date", { unique: false });
             }
         };
 
@@ -336,9 +359,114 @@
             loadFixedTasks();
             loadAdhocTaskSelect();
             updateLevelDisplay();
+            updateStatsUI();
         }
 
         updateLevelDisplay();
+
+        // --- 完了履歴・統計（達成感の可視化） ---
+
+        // ローカル時間基準の 'YYYY-MM-DD'
+        function toDateKey(date) {
+            const d = date instanceof Date ? date : new Date(date);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        // タスク完了を completionHistory に1件保存
+        function recordCompletion(task) {
+            if (!db || !db.objectStoreNames.contains("completionHistory")) return;
+            const transaction = db.transaction(["completionHistory"], "readwrite");
+            transaction.objectStore("completionHistory").add({
+                kind: 'completion',
+                taskId: task.id,
+                taskType: task.type,
+                date: toDateKey(new Date()),
+                timestamp: Date.now()
+            });
+        }
+
+        // 必須タスクを全て完了した日（allFixedDone マーカー）を1日1回だけ記録
+        function markAllFixedDone(callback) {
+            if (!db || !db.objectStoreNames.contains("completionHistory")) {
+                if (callback) callback();
+                return;
+            }
+            const todayKey = toDateKey(new Date());
+            const transaction = db.transaction(["completionHistory"], "readwrite");
+            const store = transaction.objectStore("completionHistory");
+            const getAllRequest = store.getAll();
+            getAllRequest.onsuccess = function() {
+                const exists = getAllRequest.result.some(r => r.kind === 'allFixedDone' && r.date === todayKey);
+                if (!exists) {
+                    store.add({ kind: 'allFixedDone', date: todayKey, timestamp: Date.now() });
+                }
+            };
+            transaction.oncomplete = function() {
+                if (callback) callback();
+            };
+        }
+
+        // 連続達成日数（allFixedDone が今日 or 昨日から何日連続しているか）
+        function calcStreak(allFixedDoneDates) {
+            const doneSet = new Set(allFixedDoneDates);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // 起点：今日が達成済みなら今日から、未達成でも昨日が達成済みなら昨日から数える
+            let cursor = new Date(today);
+            if (!doneSet.has(toDateKey(cursor))) {
+                cursor.setDate(cursor.getDate() - 1);
+                if (!doneSet.has(toDateKey(cursor))) return 0;
+            }
+
+            let streak = 0;
+            while (doneSet.has(toDateKey(cursor))) {
+                streak++;
+                cursor.setDate(cursor.getDate() - 1);
+            }
+            return streak;
+        }
+
+        // 今週（月曜始まり）の完了タスク総数
+        function calcWeeklyCount(records) {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const dayOfWeek = (start.getDay() + 6) % 7; // 月=0 ... 日=6
+            start.setDate(start.getDate() - dayOfWeek);
+            const startMs = start.getTime();
+            return records.filter(r => r.kind === 'completion' && r.timestamp >= startMs).length;
+        }
+
+        // 統計UI（ストリーク・今週の総数）を再計算して描画
+        function updateStatsUI() {
+            if (!db || !db.objectStoreNames.contains("completionHistory")) return;
+            const transaction = db.transaction(["completionHistory"], "readonly");
+            const getAllRequest = transaction.objectStore("completionHistory").getAll();
+            getAllRequest.onsuccess = function() {
+                const records = getAllRequest.result || [];
+                const doneDates = records.filter(r => r.kind === 'allFixedDone').map(r => r.date);
+                const streak = calcStreak(doneDates);
+                const weeklyCount = calcWeeklyCount(records);
+
+                const streakText = document.getElementById('streak-text');
+                const streakFire = document.getElementById('streak-fire');
+                if (streakText) {
+                    if (streak > 0) {
+                        streakText.textContent = `${streak}日連続達成中！`;
+                        if (streakFire) streakFire.classList.add('animate-flame');
+                    } else {
+                        streakText.textContent = '今日の必須ミッションを達成しよう！';
+                        if (streakFire) streakFire.classList.remove('animate-flame');
+                    }
+                }
+
+                const weeklyEl = document.getElementById('weekly-count');
+                if (weeklyEl) weeklyEl.textContent = weeklyCount;
+            };
+        }
 
         // --- 3. UIの操作とロジック ---
 
@@ -430,6 +558,9 @@
                         });
                     }
                     allFixedDoneCelebrated = true;
+
+                    // 「必須タスク全完了」の日を履歴に記録し、ストリーク表示を更新
+                    markAllFixedDone(updateStatsUI);
                     return;
                 }
 
@@ -608,6 +739,7 @@
                 const updateRequest = objectStore.put(task);
                 updateRequest.onsuccess = function() {
                     addExp(task.energyCost);
+                    recordCompletion(task);
                     refreshUI();
                     if (options.onSuccess) {
                         options.onSuccess(task);
