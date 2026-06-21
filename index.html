@@ -407,6 +407,20 @@
 
                 // 未完了かつ実施すべき必須タスクだけを抽出して表示（完了済みは非表示）
                 const fixedTasks = allTasks.filter(t => t.type === 'fixed' && shouldShowFixedTask(t));
+
+                // 表示すべきタスクが1つもない場合は達成メッセージを表示
+                if (fixedTasks.length === 0) {
+                    const li = document.createElement('li');
+                    li.className = 'clay-inset rounded-3xl px-6 py-7 bg-white/60 text-center';
+                    li.innerHTML = `
+                        <p class="text-2xl mb-2">🎉</p>
+                        <p class="text-sm font-bold text-slate-500 leading-relaxed">今日の絶対ミッションはすべて完了しています！</p>
+                        <p class="text-xs text-slate-400 mt-1.5 font-medium">余裕があったら掃除ガチャしてね</p>
+                    `;
+                    fixedList.appendChild(li);
+                    return;
+                }
+
                 fixedTasks.forEach(task => {
                     const li = document.createElement('li');
                     li.className = 'flex items-center justify-between gap-3 px-5 py-4 rounded-3xl clay bg-white';
