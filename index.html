@@ -84,6 +84,7 @@
         }
         select { -webkit-appearance: none; appearance: none; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 </head>
 <body class="text-slate-700 font-sans min-h-screen">
     <div class="max-w-md mx-auto min-h-screen relative px-5 pt-7 pb-24 space-y-7">
@@ -201,6 +202,7 @@
         let currentEnergy = 100;
         let db;
         let adhocMessageTimer = null;
+        let allFixedDoneCelebrated = false;
 
         const EXP_STORAGE_KEY = 'kajiMasterTotalExp';
         const levelTiers = [
@@ -418,15 +420,28 @@
                         <p class="text-xs text-slate-400 mt-1.5 font-medium">余裕があったら掃除ガチャしてね</p>
                     `;
                     fixedList.appendChild(li);
+
+                    // 全完了に「切り替わった」タイミングで一度だけ紙吹雪を出す
+                    if (!allFixedDoneCelebrated && typeof confetti === 'function') {
+                        confetti({
+                            particleCount: 100,
+                            spread: 70,
+                            origin: { y: 0.6 }
+                        });
+                    }
+                    allFixedDoneCelebrated = true;
                     return;
                 }
 
+                // 未完了タスクが残っている間は次回の全完了で再び祝えるようフラグを戻す
+                allFixedDoneCelebrated = false;
+
                 fixedTasks.forEach(task => {
                     const li = document.createElement('li');
-                    li.className = 'flex items-center justify-between gap-3 px-5 py-4 rounded-3xl clay bg-white';
+                    li.className = 'flex items-center justify-between gap-3 px-5 py-4 rounded-3xl clay bg-white transition-opacity duration-300';
                     li.innerHTML = `
                         <span class="text-sm font-bold text-slate-700">${task.name}</span>
-                        <button onclick="completeTask('${task.id}')" class="clay-pop bg-gradient-to-br from-emerald-400 to-teal-500 text-white text-xs font-bold px-4 py-2 rounded-2xl shrink-0">
+                        <button onclick="completeFixedTask('${task.id}', this)" class="clay-pop bg-gradient-to-br from-emerald-400 to-teal-500 text-white text-xs font-bold px-4 py-2 rounded-2xl shrink-0">
                             完了
                         </button>
                     `;
@@ -542,6 +557,19 @@
                     </button>
                 `;
             };
+        }
+
+        // 必須タスクの完了：フェードアウトしてから既存の完了処理（DB更新・再描画）を実行
+        function completeFixedTask(id, btnEl) {
+            const li = btnEl && btnEl.closest('li');
+            if (!li) {
+                completeTask(id);
+                return;
+            }
+            // 二重クリック防止
+            btnEl.disabled = true;
+            li.classList.add('opacity-0');
+            setTimeout(() => completeTask(id), 300);
         }
 
         // タスク完了処理（データベースの最終実施日を現在時刻で上書き）
