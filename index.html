@@ -211,28 +211,28 @@
     <script>
         // --- 1. データベースの準備（マスターデータ） ---
         const initialTasks = [
-            // 必須タスク
+            // 必須タスク（間隔が来たら「今日の絶対ミッション」に自動表示）
             { id: 'toilet', name: 'トイレ掃除', type: 'fixed', intervalDays: 5, energyCost: 30 },
             { id: 'kamekichi_tank', name: '亀吉の水槽掃除', type: 'fixed', weekdayOnly: 0, energyCost: 10 },
             { id: 'washer_lint', name: '洗濯機のごみとり', type: 'fixed', intervalDays: 15, energyCost: 8 },
-            // ランダムタスク（ガチャ）：type は 'random' のまま維持（抽選ロジック互換のため）。rarity / reward を付与
-            { id: 'bath', name: 'お風呂掃除', type: 'random', intervalDays: 7, energyCost: 40, rarity: 'R' },
-            { id: 'sheets', name: 'シーツ洗濯', type: 'random', intervalDays: 7, energyCost: 50, rarity: 'SR', reward: 'ふかふかベッドで二度寝OK🛌' },
+            { id: 'roomba', name: 'ルンバかける', type: 'fixed', intervalDays: 2, energyCost: 5 },
+            { id: 'entrance', name: '玄関掃除', type: 'fixed', intervalDays: 5, energyCost: 10 },
+            { id: 'corocoro', name: 'コロコロかける', type: 'fixed', intervalDays: 5, energyCost: 8 },
+            { id: 'floor_wiper', name: 'フローリングワイパーかける', type: 'fixed', intervalDays: 5, energyCost: 80 },
+            { id: 'bath', name: 'お風呂掃除', type: 'fixed', intervalDays: 7, energyCost: 40 },
+            { id: 'sheets', name: 'シーツ洗濯', type: 'fixed', intervalDays: 7, energyCost: 50 },
+            { id: 'washroom', name: '洗面所掃除', type: 'fixed', intervalDays: 10, energyCost: 50 },
+            { id: 'cat_water_bowl', name: '猫の水飲み器の念入り洗い', type: 'fixed', intervalDays: 10, energyCost: 8 },
+            { id: 'cat_cage_bed', name: '猫のケージ・ベッドの掃除', type: 'fixed', intervalDays: 14, energyCost: 50 },
+            // ランダムタスク（ガチャ）：type は 'random'。rarity / reward を付与
             { id: 'ac_filter', name: 'エアコンフィルター掃除', type: 'random', intervalDays: 30, energyCost: 80, rarity: 'SSR', reward: 'コンビニで新作スイーツを買う🍰' },
-            { id: 'roomba', name: 'ルンバかける', type: 'random', intervalDays: 2, energyCost: 5, rarity: 'N' },
-            { id: 'entrance', name: '玄関掃除', type: 'random', intervalDays: 5, energyCost: 10, rarity: 'N' },
-            { id: 'floor_wiper', name: 'フローリングワイパーかける', type: 'random', intervalDays: 5, energyCost: 80, rarity: 'SSR', reward: '好きな映画を1本見る🎬' },
             { id: 'kitchen_stove', name: 'キッチンコンロ掃除', type: 'random', intervalDays: 10, energyCost: 40, rarity: 'R' },
             { id: 'clothes_declutter', name: '洋服断捨離', type: 'random', intervalDays: 90, energyCost: 80, rarity: 'SSR', reward: '欲しかった服を1着ポチる🛍️' },
-            { id: 'washroom', name: '洗面所掃除', type: 'random', intervalDays: 10, energyCost: 50, rarity: 'SR', reward: 'お気に入りの入浴剤を使う🛁' },
             { id: 'plants_water', name: '観葉植物水やり', type: 'random', intervalDays: 10, energyCost: 8, rarity: 'N' },
             { id: 'table_tidy', name: 'テーブル片付け', type: 'random', intervalDays: 20, energyCost: 30, rarity: 'R' },
-            { id: 'corocoro', name: 'コロコロかける', type: 'random', intervalDays: 5, energyCost: 8, rarity: 'N' },
             { id: 'balcony', name: '🍂 ベランダ掃除', type: 'random', intervalDays: 30, energyCost: 50, rarity: 'SR', reward: 'ベランダでコーヒータイム☕️' },
             { id: 'window', name: '🪟 窓ふき', type: 'random', intervalDays: 15, energyCost: 80, rarity: 'SSR', reward: '窓際でアイスを食べる🍦' },
             { id: 'shoes', name: '👞 靴磨き', type: 'random', intervalDays: 20, energyCost: 40, rarity: 'R' },
-            { id: 'cat_cage_bed', name: '猫のケージ・ベッドの掃除', type: 'random', intervalDays: 14, energyCost: 50, rarity: 'SR', reward: '猫と10分じゃらす🐈' },
-            { id: 'cat_water_bowl', name: '猫の水飲み器の念入り洗い', type: 'random', intervalDays: 10, energyCost: 8, rarity: 'N' },
             { id: 'microwave', name: '電子レンジ庫内の拭き掃除', type: 'random', intervalDays: 14, energyCost: 8, rarity: 'N' },
             { id: 'fridge', name: '冷蔵庫の中の拭き掃除と賞味期限チェック', type: 'random', intervalDays: 30, energyCost: 40, rarity: 'R' },
             { id: 'curtains', name: 'カーテンの洗濯', type: 'random', intervalDays: 360, energyCost: 80, rarity: 'SSR', reward: '昼寝を30分する😴' },
