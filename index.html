@@ -255,18 +255,30 @@
 
         const EXP_STORAGE_KEY = 'kajiMasterTotalExp';
         const ACHIEVEMENTS_KEY = 'kajiMasterAchievements';
+        const ACHIEVEMENTS_VERSION_KEY = 'kajiMasterAchievementsVersion';
+        const ACHIEVEMENTS_VERSION = 2; // 実績セットを変更したら +1（既存達成分は静かに反映される）
         const MILESTONES_KEY = 'kajiMasterStreakMilestones';
-        const STREAK_MILESTONES = [3, 7, 14, 30];
+        const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
 
-        // 実績バッジ定義。test(stats) が true になると解除
+        // 実績バッジ定義。test(stats) が true になると解除。ハードモード版
         const ACHIEVEMENTS = [
-            { id: 'first',   emoji: '🎬', name: 'はじめの一歩', desc: '初めてタスクを完了', test: s => s.total >= 1 },
-            { id: 'ten',     emoji: '🧹', name: 'コツコツ屋',   desc: '累計10件クリア',   test: s => s.total >= 10 },
-            { id: 'fifty',   emoji: '🏆', name: '掃除の鬼',     desc: '累計50件クリア',   test: s => s.total >= 50 },
-            { id: 'streak3', emoji: '🔥', name: '三日坊主卒業', desc: '3日連続で達成',    test: s => s.streak >= 3 },
-            { id: 'streak7', emoji: '💎', name: '皆勤賞',       desc: '7日連続で達成',    test: s => s.streak >= 7 },
-            { id: 'ssr',     emoji: '⭐', name: 'SSRハンター',  desc: 'SSRタスクをクリア', test: s => s.ssr >= 1 },
-            { id: 'master',  emoji: '👑', name: '家事マスター', desc: 'レベル4に到達',    test: s => s.level >= 4 }
+            // レベル系
+            { id: 'lv2',    emoji: '🥉', name: '家事ルーキー',   desc: 'レベル2に到達',   test: s => s.level >= 2 },
+            { id: 'lv3',    emoji: '🥈', name: '家事レギュラー', desc: 'レベル3に到達',   test: s => s.level >= 3 },
+            { id: 'lv4',    emoji: '🥇', name: '家事マスター',   desc: 'レベル4に到達',   test: s => s.level >= 4 },
+            { id: 'lv5',    emoji: '👑', name: '伝説の家事神',   desc: 'レベル5に到達',   test: s => s.level >= 5 },
+            // 累計こなした数
+            { id: 'c30',    emoji: '🧹', name: 'コツコツ屋',     desc: '累計30件クリア',  test: s => s.total >= 30 },
+            { id: 'c100',   emoji: '🧽', name: '掃除の鬼',       desc: '累計100件クリア', test: s => s.total >= 100 },
+            { id: 'c300',   emoji: '🧼', name: 'クリーン番長',   desc: '累計300件クリア', test: s => s.total >= 300 },
+            { id: 'c500',   emoji: '🌟', name: '掃除仙人',       desc: '累計500件クリア', test: s => s.total >= 500 },
+            // 連続達成
+            { id: 's7',     emoji: '🔥', name: '一週間皆勤',     desc: '7日連続で達成',   test: s => s.streak >= 7 },
+            { id: 's30',    emoji: '💎', name: '継続の達人',     desc: '30日連続で達成',  test: s => s.streak >= 30 },
+            { id: 's100',   emoji: '🗿', name: '鉄の意志',       desc: '100日連続で達成', test: s => s.streak >= 100 },
+            // ガチャSSR
+            { id: 'ssr1',   emoji: '⭐', name: 'SSRハンター',    desc: 'SSRを1回クリア',  test: s => s.ssr >= 1 },
+            { id: 'ssr10',  emoji: '🎰', name: 'SSRコレクター',  desc: 'SSRを10回クリア', test: s => s.ssr >= 10 }
         ];
 
         // レア度の早見表（完了履歴からSSR判定するため）
@@ -601,16 +613,20 @@
         }
 
         function checkAchievements(stats) {
-            const firstRun = localStorage.getItem(ACHIEVEMENTS_KEY) === null;
+            // 初回、または実績セットのバージョンが変わったときは「静かに」既存達成分を反映（演出なし）
+            const storedVersion = parseInt(localStorage.getItem(ACHIEVEMENTS_VERSION_KEY) || '0', 10);
+            const silent = localStorage.getItem(ACHIEVEMENTS_KEY) === null || storedVersion !== ACHIEVEMENTS_VERSION;
+
             const unlocked = new Set(getUnlockedAchievements());
             const newlyUnlocked = [];
             ACHIEVEMENTS.forEach(a => {
                 if (!unlocked.has(a.id) && a.test(stats)) {
                     unlocked.add(a.id);
-                    if (!firstRun) newlyUnlocked.push(a);
+                    if (!silent) newlyUnlocked.push(a);
                 }
             });
             localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify([...unlocked]));
+            localStorage.setItem(ACHIEVEMENTS_VERSION_KEY, String(ACHIEVEMENTS_VERSION));
             renderAchievements(unlocked);
 
             // 新規解除は1件ずつ順番にトースト＋紙吹雪
