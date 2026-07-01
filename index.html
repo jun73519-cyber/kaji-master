@@ -105,6 +105,11 @@
             <span id="streak-text" class="font-black text-base drop-shadow-sm tracking-tight">記録を読み込み中...</span>
         </div>
 
+        <!-- 今いちばんヤバいタスク（おすすめ） -->
+        <div id="suggest-banner" class="hidden clay-inset rounded-2xl px-5 py-3 bg-rose-50/80 text-center">
+            <p class="text-xs font-bold text-rose-500"><span id="suggest-text"></span></p>
+        </div>
+
         <!-- 家事の達人度（レベル・経験値） -->
         <section id="level-section" class="clay-pop rounded-[2rem] p-6 bg-gradient-to-br from-amber-300 via-orange-400 to-rose-400 text-white">
             <div class="flex items-center justify-between mb-4">
@@ -180,7 +185,27 @@
             <p class="text-xs text-slate-400 font-medium">今週こなしたタスク</p>
             <p class="text-sm font-black text-slate-600"><span id="weekly-count">0</span> 件</p>
         </section>
+
+        <!-- 実績バッジ（トロフィー） -->
+        <section class="clay rounded-[2rem] p-6 bg-white/70">
+            <h2 class="text-sm font-bold text-slate-500 mb-4">🏅 実績バッジ</h2>
+            <div id="achievements-grid" class="grid grid-cols-3 gap-3">
+                <!-- JavaScriptでバッジが生成されます -->
+            </div>
+        </section>
     </div>
+
+    <!-- お祝い演出オーバーレイ -->
+    <div id="celebrate-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-8">
+        <div class="clay rounded-[2rem] bg-white px-8 py-10 text-center max-w-xs w-full animate-pop">
+            <p id="celebrate-emoji" class="text-6xl mb-3">🎉</p>
+            <p id="celebrate-title" class="text-xl font-black text-slate-700 mb-1"></p>
+            <p id="celebrate-sub" class="text-sm font-medium text-slate-400"></p>
+        </div>
+    </div>
+
+    <!-- トースト（実績解除通知など） -->
+    <div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-8 z-[60] clay-pop rounded-full px-6 py-3 bg-slate-800 text-white text-sm font-bold text-center"></div>
 
     <!-- アプリの裏側（ロジック） -->
     <script>
@@ -222,7 +247,67 @@
         let adhocMessageTimer = null;
         let allFixedDoneCelebrated = false;
 
+        // お祝いオーバーレイはタップで閉じる
+        document.addEventListener('DOMContentLoaded', () => {
+            const overlay = document.getElementById('celebrate-overlay');
+            if (overlay) overlay.addEventListener('click', () => overlay.classList.add('hidden'));
+        });
+
         const EXP_STORAGE_KEY = 'kajiMasterTotalExp';
+        const ACHIEVEMENTS_KEY = 'kajiMasterAchievements';
+        const MILESTONES_KEY = 'kajiMasterStreakMilestones';
+        const STREAK_MILESTONES = [3, 7, 14, 30];
+
+        // 実績バッジ定義。test(stats) が true になると解除
+        const ACHIEVEMENTS = [
+            { id: 'first',   emoji: '🎬', name: 'はじめの一歩', desc: '初めてタスクを完了', test: s => s.total >= 1 },
+            { id: 'ten',     emoji: '🧹', name: 'コツコツ屋',   desc: '累計10件クリア',   test: s => s.total >= 10 },
+            { id: 'fifty',   emoji: '🏆', name: '掃除の鬼',     desc: '累計50件クリア',   test: s => s.total >= 50 },
+            { id: 'streak3', emoji: '🔥', name: '三日坊主卒業', desc: '3日連続で達成',    test: s => s.streak >= 3 },
+            { id: 'streak7', emoji: '💎', name: '皆勤賞',       desc: '7日連続で達成',    test: s => s.streak >= 7 },
+            { id: 'ssr',     emoji: '⭐', name: 'SSRハンター',  desc: 'SSRタスクをクリア', test: s => s.ssr >= 1 },
+            { id: 'master',  emoji: '👑', name: '家事マスター', desc: 'レベル4に到達',    test: s => s.level >= 4 }
+        ];
+
+        // レア度の早見表（完了履歴からSSR判定するため）
+        const rarityById = new Map();
+        initialTasks.forEach(t => { if (t.rarity) rarityById.set(t.id, t.rarity); });
+
+        // --- お祝い演出の共通ヘルパー ---
+        function fireConfetti(options = {}) {
+            if (typeof confetti !== 'function') return;
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, ...options });
+        }
+
+        function fireBigConfetti(colors) {
+            if (typeof confetti !== 'function') return;
+            const base = { spread: 90, startVelocity: 45, origin: { y: 0.55 } };
+            fireConfetti({ ...base, particleCount: 120, colors });
+            setTimeout(() => fireConfetti({ ...base, particleCount: 80, angle: 60, origin: { x: 0, y: 0.6 }, colors }), 150);
+            setTimeout(() => fireConfetti({ ...base, particleCount: 80, angle: 120, origin: { x: 1, y: 0.6 }, colors }), 300);
+        }
+
+        let celebrateTimer = null;
+        function showCelebration(emoji, title, sub, colors) {
+            const overlay = document.getElementById('celebrate-overlay');
+            document.getElementById('celebrate-emoji').textContent = emoji;
+            document.getElementById('celebrate-title').textContent = title;
+            document.getElementById('celebrate-sub').textContent = sub || '';
+            overlay.classList.remove('hidden');
+            fireBigConfetti(colors);
+            if (celebrateTimer) clearTimeout(celebrateTimer);
+            celebrateTimer = setTimeout(() => overlay.classList.add('hidden'), 2600);
+        }
+
+        let toastTimer = null;
+        function showToast(text) {
+            const toast = document.getElementById('toast');
+            toast.textContent = text;
+            toast.classList.remove('hidden');
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
         const levelTiers = [
             { level: 1, title: '家事見習い', minExp: 0 },
             { level: 2, title: '家事ルーキー', minExp: 500 },
@@ -360,9 +445,43 @@
             loadAdhocTaskSelect();
             updateLevelDisplay();
             updateStatsUI();
+            updateSuggestion();
+        }
+
+        // 「今いちばんヤバいタスク」＝期限を最も過ぎているタスクを1つ提案
+        function updateSuggestion() {
+            if (!db) return;
+            const transaction = db.transaction(["tasks"], "readonly");
+            const request = transaction.objectStore("tasks").getAll();
+            request.onsuccess = function() {
+                const now = Date.now();
+                let worst = null;
+                let worstRatio = 1; // 期限（1.0倍）を超えたものだけ対象
+                request.result.forEach(task => {
+                    if (!task.intervalDays || !task.lastCleanedDate) return;
+                    if (isTaskDoneToday(task)) return;
+                    const intervalMs = task.intervalDays * 24 * 60 * 60 * 1000;
+                    const ratio = (now - task.lastCleanedDate) / intervalMs;
+                    if (ratio > worstRatio) { worstRatio = ratio; worst = task; }
+                });
+
+                const banner = document.getElementById('suggest-banner');
+                const textEl = document.getElementById('suggest-text');
+                if (!banner || !textEl) return;
+
+                if (worst) {
+                    const overdueDays = Math.floor((now - worst.lastCleanedDate) / (24 * 60 * 60 * 1000)) - worst.intervalDays;
+                    const daysText = overdueDays > 0 ? `（${overdueDays}日オーバー）` : '';
+                    textEl.textContent = `🚨 そろそろ「${worst.name}」がヤバいかも${daysText}`;
+                    banner.classList.remove('hidden');
+                } else {
+                    banner.classList.add('hidden');
+                }
+            };
         }
 
         updateLevelDisplay();
+        setEnergy(100); // 起動時に「バッチリ！(100%)」を選択済みにする
 
         // --- 完了履歴・統計（達成感の可視化） ---
 
@@ -465,7 +584,83 @@
 
                 const weeklyEl = document.getElementById('weekly-count');
                 if (weeklyEl) weeklyEl.textContent = weeklyCount;
+
+                // 実績・ストリークマイルストーンの判定
+                const total = records.filter(r => r.kind === 'completion').length;
+                const ssr = records.filter(r => r.kind === 'completion' && rarityById.get(r.taskId) === 'SSR').length;
+                const level = getLevelInfo(getTotalExp()).level;
+                checkAchievements({ total, ssr, level, streak, weekly: weeklyCount });
+                checkStreakMilestones(streak);
             };
+        }
+
+        // --- 実績バッジ ---
+        function getUnlockedAchievements() {
+            try { return JSON.parse(localStorage.getItem(ACHIEVEMENTS_KEY)) || []; }
+            catch (e) { return []; }
+        }
+
+        function checkAchievements(stats) {
+            const firstRun = localStorage.getItem(ACHIEVEMENTS_KEY) === null;
+            const unlocked = new Set(getUnlockedAchievements());
+            const newlyUnlocked = [];
+            ACHIEVEMENTS.forEach(a => {
+                if (!unlocked.has(a.id) && a.test(stats)) {
+                    unlocked.add(a.id);
+                    if (!firstRun) newlyUnlocked.push(a);
+                }
+            });
+            localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify([...unlocked]));
+            renderAchievements(unlocked);
+
+            // 新規解除は1件ずつ順番にトースト＋紙吹雪
+            newlyUnlocked.forEach((a, i) => {
+                setTimeout(() => {
+                    showToast(`🏅 実績解除：${a.emoji} ${a.name}`);
+                    fireConfetti({ particleCount: 60, spread: 55 });
+                }, 900 + i * 1400);
+            });
+        }
+
+        function renderAchievements(unlockedSet) {
+            const grid = document.getElementById('achievements-grid');
+            if (!grid) return;
+            const unlocked = unlockedSet instanceof Set ? unlockedSet : new Set(getUnlockedAchievements());
+            grid.innerHTML = '';
+            ACHIEVEMENTS.forEach(a => {
+                const isUnlocked = unlocked.has(a.id);
+                const cell = document.createElement('div');
+                cell.className = `rounded-2xl px-2 py-3 text-center ${isUnlocked ? 'clay bg-white' : 'clay-inset bg-slate-100/70'}`;
+                cell.title = a.desc;
+                cell.innerHTML = `
+                    <div class="text-2xl ${isUnlocked ? '' : 'grayscale opacity-40'}">${isUnlocked ? a.emoji : '🔒'}</div>
+                    <div class="text-[10px] font-bold mt-1 ${isUnlocked ? 'text-slate-600' : 'text-slate-400'}">${a.name}</div>
+                    <div class="text-[9px] mt-0.5 leading-tight ${isUnlocked ? 'text-slate-400' : 'text-slate-300'}">${a.desc}</div>
+                `;
+                grid.appendChild(cell);
+            });
+        }
+
+        // --- ストリークのマイルストーン祝福 ---
+        function getCelebratedMilestones() {
+            try { return JSON.parse(localStorage.getItem(MILESTONES_KEY)) || []; }
+            catch (e) { return []; }
+        }
+
+        function checkStreakMilestones(streak) {
+            const firstRun = localStorage.getItem(MILESTONES_KEY) === null;
+            const celebrated = new Set(getCelebratedMilestones());
+            // 途切れて下がったマイルストーンは解除（再達成でまた祝えるように）
+            STREAK_MILESTONES.forEach(m => { if (streak < m) celebrated.delete(m); });
+            STREAK_MILESTONES.forEach(m => {
+                if (streak >= m && !celebrated.has(m)) {
+                    celebrated.add(m);
+                    if (!firstRun) {
+                        setTimeout(() => showCelebration('🔥', `${m}日連続達成！`, 'この調子で家事の達人へ！', ['#fb923c', '#f43f5e', '#fbbf24']), 500);
+                    }
+                }
+            });
+            localStorage.setItem(MILESTONES_KEY, JSON.stringify([...celebrated]));
         }
 
         // --- 3. UIの操作とロジック ---
@@ -689,26 +884,64 @@
                     return;
                 }
 
-                // ランダムに1つ選ぶ
+                // ランダムに1つ選ぶ（結果は先に確定させ、演出だけ後から見せる）
                 const randomTask = candidates[Math.floor(Math.random() * candidates.length)];
 
-                const rarityBadge = randomTask.rarity ? renderRarityBadge(randomTask.rarity) : '';
-                const rewardHtml = randomTask.reward ? `
-                    <div class="mt-1 mb-4 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-pink-100 via-rose-50 to-amber-100 border border-pink-200/70 shadow-sm">
-                        <p class="text-xs font-bold text-pink-500">🎁 クリア報酬: <span class="text-rose-500">${randomTask.reward}</span></p>
-                    </div>
-                ` : '';
-
+                // 抽選ドラマ：候補名とレア度をパラパラ切り替えてから結果を確定
+                const rollRarities = ['N', 'R', 'SR', 'SSR'];
+                let ticks = 0;
+                const totalTicks = 12;
                 resultDiv.innerHTML = `
-                    <div class="text-[11px] font-semibold text-orange-400 mb-2">今日のミッション</div>
-                    ${rarityBadge ? `<div class="mb-2">${rarityBadge}</div>` : ''}
-                    <div class="text-lg font-black text-slate-700 ${randomTask.reward ? 'mb-2' : 'mb-4'}">${randomTask.name}</div>
-                    ${rewardHtml}
-                    <button onclick="completeTask('${randomTask.id}')" class="clay-pop bg-gradient-to-br from-orange-400 to-rose-400 text-white text-sm font-bold py-3 px-8 rounded-full">
-                        完了する！
-                    </button>
+                    <div class="text-[11px] font-semibold text-orange-400 mb-2">抽選中...</div>
+                    <div class="mb-2" id="gacha-roll-badge">${renderRarityBadge('N')}</div>
+                    <div class="text-lg font-black text-slate-400" id="gacha-roll-name">🎲 🎲 🎲</div>
                 `;
+                const rollBadge = document.getElementById('gacha-roll-badge');
+                const rollName = document.getElementById('gacha-roll-name');
+                const rollTimer = setInterval(() => {
+                    const rc = candidates[Math.floor(Math.random() * candidates.length)];
+                    if (rollName) rollName.textContent = rc.name;
+                    if (rollBadge) rollBadge.innerHTML = renderRarityBadge(rollRarities[Math.floor(Math.random() * rollRarities.length)]);
+                    ticks++;
+                    if (ticks >= totalTicks) {
+                        clearInterval(rollTimer);
+                        revealGacha(randomTask, resultDiv);
+                    }
+                }, 90);
             };
+        }
+
+        // ガチャ結果を確定表示（SSRは特別演出＋金色紙吹雪）
+        function revealGacha(randomTask, resultDiv) {
+            const rarityBadge = randomTask.rarity ? renderRarityBadge(randomTask.rarity) : '';
+            const rewardHtml = randomTask.reward ? `
+                <div class="mt-1 mb-4 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-pink-100 via-rose-50 to-amber-100 border border-pink-200/70 shadow-sm">
+                    <p class="text-xs font-bold text-pink-500">🎁 クリア報酬: <span class="text-rose-500">${randomTask.reward}</span></p>
+                </div>
+            ` : '';
+
+            resultDiv.classList.remove('animate-pop');
+            void resultDiv.offsetWidth;
+            resultDiv.classList.add('animate-pop');
+
+            const isSSR = randomTask.rarity === 'SSR';
+            resultDiv.innerHTML = `
+                ${isSSR
+                    ? '<div class="text-sm font-black text-amber-500 mb-1 tracking-widest animate-flame">✨ SSR 大当たり！ ✨</div>'
+                    : '<div class="text-[11px] font-semibold text-orange-400 mb-2">今日のミッション</div>'}
+                ${rarityBadge ? `<div class="mb-2">${rarityBadge}</div>` : ''}
+                <div class="text-lg font-black text-slate-700 ${randomTask.reward ? 'mb-2' : 'mb-4'}">${randomTask.name}</div>
+                ${rewardHtml}
+                <button onclick="completeTask('${randomTask.id}')" class="clay-pop bg-gradient-to-br from-orange-400 to-rose-400 text-white text-sm font-bold py-3 px-8 rounded-full">
+                    完了する！
+                </button>
+            `;
+
+            if (isSSR) {
+                fireBigConfetti(['#fcd34d', '#f59e0b', '#fff7cd']);
+            } else if (randomTask.rarity === 'SR') {
+                fireConfetti({ colors: ['#c084fc', '#a855f7', '#f0abfc'] });
+            }
         }
 
         // 必須タスクの完了：フェードアウトしてから既存の完了処理（DB更新・再描画）を実行
@@ -738,13 +971,22 @@
 
                 const updateRequest = objectStore.put(task);
                 updateRequest.onsuccess = function() {
+                    // レベルアップ判定（EXP加算の前後でレベルを比較）
+                    const beforeLevel = getLevelInfo(getTotalExp()).level;
                     addExp(task.energyCost);
+                    const afterInfo = getLevelInfo(getTotalExp());
                     recordCompletion(task);
                     refreshUI();
                     if (options.onSuccess) {
                         options.onSuccess(task);
                     } else if (task.type === 'random') {
                         document.getElementById('gacha-result').innerHTML = `<p class="text-emerald-500 font-bold">✨ お疲れ様！+${task.energyCost} EXP 獲得！ ✨</p>`;
+                    }
+                    // レベルが上がっていたら昇格演出（少し遅らせてタスク消化アニメと重ならないように）
+                    if (afterInfo.level > beforeLevel) {
+                        setTimeout(() => {
+                            showCelebration('🎉', `Lv${afterInfo.level} に昇格！`, `称号「${afterInfo.title}」を獲得！`, ['#a78bfa', '#f472b6', '#fcd34d']);
+                        }, 400);
                     }
                 };
             };
